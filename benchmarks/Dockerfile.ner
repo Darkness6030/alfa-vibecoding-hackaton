@@ -1,0 +1,10 @@
+FROM python:3.12-slim
+
+WORKDIR /srv
+
+COPY benchmarks/requirements-ner.txt .
+RUN pip install --no-cache-dir -r requirements-ner.txt
+
+COPY benchmarks ./benchmarks
+
+CMD ["python", "benchmarks/run_ner_benchmark.py"]

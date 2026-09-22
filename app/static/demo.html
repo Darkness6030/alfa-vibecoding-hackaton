@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>AlfaGen PII Guard — демо</title>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    textarea { width: 100%; height: 80px; }
+    .box { border: 1px solid #ccc; padding: 0.75rem; margin: 0.5rem 0; border-radius: 6px; }
+    .label { font-weight: bold; }
+    .stub { background: #fff3cd; border: 1px solid #ffc107; padding: 0.5rem; border-radius: 6px; }
+    button { padding: 0.5rem 1rem; }
+  </style>
+</head>
+<body>
+  <h1>AlfaGen PII Guard — демо-прокси</h1>
+  <div class="stub">⚠️ LLM: заглушка (mock). Не реальная генерация.</div>
+  <p>Введите текст с персональными данными. Прокси замаскирует его, отправит в mock LLM, затем восстановит ответ.</p>
+  <textarea id="input">Клиент Иван Петров из Москвы, почта ivan@example.com, телефон +7 912 345-67-89</textarea>
+  <br>
+  <button onclick="run()">Отправить</button>
+  <div id="result"></div>
+
+  <script>
+    async function run() {
+      const text = document.getElementById('input').value;
+      const res = await fetch('/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      const el = document.getElementById('result');
+      el.innerHTML = `
+        <div class="box"><span class="label">Маска (что видит LLM):</span><br>${escapeHtml(data.masked_input)}</div>
+        <div class="box"><span class="label">Ответ mock LLM:</span><br>${escapeHtml(data.llm_response)}</div>
+        <div class="box"><span class="label">Восстановленный ответ:</span><br>${escapeHtml(data.restored_response)}</div>
+      `;
+    }
+    function escapeHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+  </script>
+</body>
+</html>

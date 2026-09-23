@@ -12,10 +12,8 @@ Test modes:
 
 from __future__ import annotations
 
-import re
+from app.core import TOKEN_RE as _TOKEN_RE
 from typing import Protocol
-
-_TOKEN_RE = re.compile(r"\{\{[A-Z_]+:[0-9a-f]{16}\}\}")
 
 
 class LLMError(Exception):

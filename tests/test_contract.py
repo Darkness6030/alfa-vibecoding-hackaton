@@ -30,7 +30,7 @@ def test_health_ok():
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
-    assert body["engine_stub"] is True
+    assert body["engine_stub"] is False
 
 
 def test_process_returns_200_and_result_string():
@@ -61,7 +61,7 @@ def test_process_empty_body_is_422():
     assert r.status_code == 422
 
 
-def test_stub_echoes_and_marks_not_masked():
+def test_no_context_name_is_not_claimed_as_detected():
     # Explicit placeholder behaviour: echo, never claim masking.
     r = client.post("/process", json={"payload": "Иван Иванов", "payload_id": "id-2"})
     assert r.status_code == 200

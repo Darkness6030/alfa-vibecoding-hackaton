@@ -4,4 +4,15 @@ __pycache__/
 .git/
 .idea/
 .env
+.env.*
+dist/
+output/
+.codex-build/
+.pytest_cache/
+.ruff_cache/
+.secrets/
+
+.local/
+docs/
 tests/
+benchmarks/

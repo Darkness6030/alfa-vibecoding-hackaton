@@ -47,8 +47,8 @@ def test_demo_secure_requires_api_key():
 
 def test_demo_secure_authenticates_valid_key():
     cfg = build_demo_secure()
-    assert cfg.authenticate("crm-secret-key") == "crm"
-    assert cfg.authenticate("analytics-secret-key") == "analytics"
+    assert cfg.authenticate("test-crm-only") == "crm"
+    assert cfg.authenticate("test-analytics-only") == "analytics"
 
 
 def test_demo_secure_rejects_invalid_key():
@@ -123,7 +123,7 @@ def test_disabled_system_blocked():
     cfg = build_demo_secure()
     cfg.systems["crm"] = SystemPolicy(
         name="crm",
-        api_key="crm-secret-key",
+        api_key="test-crm-only",
         mask_types=frozenset({"EMAIL"}),
         demask_allowed=True,
         enabled=False,
@@ -142,7 +142,9 @@ def test_pair_params_immutable_after_creation():
     assert "a@b.com" not in first.result
     # A different engine (different mask_types) still demasks the same pair.
     engine_all = MaskingEngine(mask_types={"EMAIL", "PERSON"})
-    back = store.process("id-1", first.result, engine_all.mask, demask_allowed=lambda: True)
+    back = store.process(
+        "id-1", first.result, engine_all.mask, demask_allowed=lambda: True
+    )
     assert back.result == "почта a@b.com"
 
 
@@ -151,10 +153,16 @@ def test_custom_policy_config():
     cfg = PolicyConfig(
         systems={
             "sys-a": SystemPolicy(
-                name="sys-a", api_key="key-a", mask_types=frozenset({"EMAIL"}), demask_allowed=True
+                name="sys-a",
+                api_key="key-a",
+                mask_types=frozenset({"EMAIL"}),
+                demask_allowed=True,
             ),
             "sys-b": SystemPolicy(
-                name="sys-b", api_key="key-b", mask_types=frozenset({"PHONE"}), demask_allowed=False
+                name="sys-b",
+                api_key="key-b",
+                mask_types=frozenset({"PHONE"}),
+                demask_allowed=False,
             ),
         }
     )

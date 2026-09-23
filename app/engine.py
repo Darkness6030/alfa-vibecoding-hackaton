@@ -18,8 +18,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.core import Span, mask, resolve_spans, restore
-from app.metrics import detected, masked
+from app.core import Span, MaskResult, mask_resolved, resolve_spans
+import re
+from app.metrics import detected, masked, measured
 from app.detectors.address import AddressDetector, BirthPlaceDetector
 from app.detectors.card import CardNumberDetector, CvvDetector, PinDetector
 from app.detectors.cardholder import CardHolderDetector
@@ -35,6 +36,23 @@ from app.detectors.person import PersonDetector
 from app.detectors.phone import PhoneDetector
 
 
+_DIGIT = re.compile(r"\d")
+_NUMERIC_TYPES = frozenset(
+    {
+        "BIRTH_DATE",
+        "ISSUE_DATE",
+        "PASSPORT",
+        "DRIVING_LICENSE",
+        "DIVISION_CODE",
+        "PHONE",
+        "INN",
+        "CARD",
+        "CVV",
+        "PIN",
+    }
+)
+
+
 @dataclass(frozen=True)
 class ProcessResult:
     result: str
@@ -44,7 +62,16 @@ class ProcessResult:
 class MaskingEngine:
     """Runs detectors and produces reversible tokens."""
 
-    def __init__(self, ner_enabled: bool = True, mask_types: set[str] | None = None) -> None:
+    def __init__(
+        self,
+        ner_enabled: bool = False,
+        mask_types: set[str] | None = None,
+        detect_types: set[str] | None = None,
+        masking_enabled: bool = True,
+        mask_mode: str = "token",
+        combinations=(),
+        custom_patterns=(),
+    ) -> None:
         self._detectors = [
             NerDetector(enabled=ner_enabled),
             PersonDetector(),
@@ -66,21 +93,71 @@ class MaskingEngine:
             CardHolderDetector(),
         ]
         self._mask_types = set(mask_types) if mask_types is not None else None
+        self._detect_types = (
+            set(detect_types) if detect_types is not None else self._mask_types
+        )
+        self._masking_enabled = masking_enabled
+        self._mask_mode = mask_mode
+        self._combinations = dict(combinations)
+        self._patterns = [(t, re.compile(p, re.IGNORECASE)) for t, p in custom_patterns]
 
-    def detect(self, text: str) -> list[Span]:
-        spans: list[Span] = []
-        for detector in self._detectors:
-            if self._mask_types is not None and detector.type not in self._mask_types:
+    def _enabled(self, type_: str) -> bool:
+        return self._detect_types is None or type_ in self._detect_types
+
+    def _custom_spans(self, text: str) -> list[Span]:
+        spans = []
+        for type_, pattern in self._patterns:
+            if not self._enabled(type_):
                 continue
-            spans.extend(detector.detect(text))
+            spans.extend(
+                Span(m.start(), m.end(), type_, m.group(), 70)
+                for m in pattern.finditer(text)
+                if m.end() > m.start()
+            )
         return spans
 
-    def mask(self, text: str):
-        spans = self.detect(text)
-        res = mask(text, spans)
+    def detect(self, text: str) -> list[Span]:
+        spans = []
+        has_digits = _DIGIT.search(text) is not None
+        for detector in self._detectors:
+            if not has_digits and detector.type in _NUMERIC_TYPES:
+                continue
+            if detector.type != "NER" and not self._enabled(detector.type):
+                continue
+            spans.extend(s for s in detector.detect(text) if self._enabled(s.type))
+        spans.extend(self._custom_spans(text))
+        return spans
+
+    def _selected(self, span: Span, types: frozenset[str]) -> bool:
+        return (
+            self._masking_enabled
+            and (self._mask_types is None or span.type in self._mask_types)
+            and set(self._combinations.get(span.type, ())) <= types
+        )
+
+    @staticmethod
+    def _redact(text: str, resolved: list[Span]) -> MaskResult:
+        parts, cursor = [], 0
+        for span in resolved:
+            parts.extend([text[cursor : span.start], "*" * (span.end - span.start)])
+            cursor = span.end
+        parts.append(text[cursor:])
+        return MaskResult("".join(parts), {}, bool(resolved))
+
+    def mask(self, text: str) -> MaskResult:
+        with measured("detect"):
+            spans = self.detect(text)
+        types = frozenset(s.type for s in spans)
+        resolved = resolve_spans(s for s in spans if self._selected(s, types))
+        if self._mask_mode == "redact":
+            res = self._redact(text, resolved)
+        else:
+            with measured("mask"):
+                res = mask_resolved(text, resolved)
+        res.detected_types = types
         for span in spans:
             detected.labels(type=span.type).inc()
-        for span in resolve_spans(spans):
+        for span in resolved:
             masked.labels(type=span.type).inc()
         return res
 

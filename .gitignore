@@ -1,7 +1,36 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
 .idea/
 dist/
 .env
+.env.*
+!.env.example
 *.tar.gz
+output/
+.codex-build/
+.secrets/
+
+# Private workbench, organizer sources and deployment-specific evidence
+.local/
+AGENTS.md
+docs/sources/
+docs/reports/
+docs/operations/dental-runbook.md
+docs/operations/delivery-checklist.md
+docker-compose.dental.yml
+# Historical local instructions (tracked paths remain visible until separately removed)
+docs/research-*.md
+docs/kilo-start.md
+docs/model-rules.md
+docs/execution-plan.md
+docs/questions.md
+docs/dental-runbook.md
+docs/delivery-checklist.md
+docs/README.md
+docs/spec/requirements.md
+docs/spec/qa-decisions.md
+docs/spec/scoring-and-demo.md
+docs/operations/sonar-local.md

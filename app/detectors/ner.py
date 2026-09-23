@@ -11,10 +11,9 @@ flagged as PII (requirements F01).
 
 from __future__ import annotations
 
-import re
 
 from app.core import Span
-from app.detectors.base import context_before
+from app.detectors.base import context_before_offset
 
 # Personal context keywords: presence indicates a personal-data mention.
 _PERSONAL_KEYWORDS = (
@@ -68,13 +67,18 @@ class _NatashaPipeline:
     @classmethod
     def get(cls):
         if cls._instance is None:
-            from natasha import Doc, NewsEmbedding, NewsMorphTagger, NewsNERTagger, Segmenter
+            from natasha import (
+                Doc,
+                NewsEmbedding,
+                NewsMorphTagger,
+                NewsNERTagger,
+                Segmenter,
+            )
 
             segmenter = Segmenter()
             emb = NewsEmbedding()
             cls._instance = (
                 segmenter,
-                emb,
                 NewsMorphTagger(emb),
                 NewsNERTagger(emb),
                 Doc,
@@ -93,11 +97,11 @@ class NerDetector:
         if not self._enabled:
             return []
         try:
-            segmenter, emb, morph_tagger, ner_tagger, Doc = _NatashaPipeline.get()
+            segmenter, morph_tagger, ner_tagger, doc_factory = _NatashaPipeline.get()
         except ImportError:
             return []
 
-        doc = Doc(text)
+        doc = doc_factory(text)
         doc.segment(segmenter)
         doc.tag_morph(morph_tagger)
         doc.tag_ner(ner_tagger)
@@ -106,7 +110,7 @@ class NerDetector:
         for span in doc.spans:
             if span.type not in ("PER", "LOC"):
                 continue
-            if not self._is_personal(text, span.start, span.stop):
+            if not self._is_personal(text, span.start):
                 continue
             pii_type = "PERSON" if span.type == "PER" else "LOCATION"
             spans.append(
@@ -120,18 +124,9 @@ class NerDetector:
             )
         return spans
 
-    def _is_personal(self, text: str, start: int, end: int) -> bool:
-        before = context_before(text, _FakeMatch(start), n_words=6)
+    @staticmethod
+    def _is_personal(text: str, start: int) -> bool:
+        before = context_before_offset(text, start, n_words=6)
         if any(kw in before for kw in _NON_PERSONAL_KEYWORDS):
             return False
         return any(kw in before for kw in _PERSONAL_KEYWORDS)
-
-
-class _FakeMatch:
-    """Minimal match-like object for context_before."""
-
-    def __init__(self, start: int) -> None:
-        self._start = start
-
-    def start(self) -> int:
-        return self._start

@@ -1,0 +1,14 @@
+{
+  "open_system": "stand",
+  "custom_patterns": [],
+  "systems": {
+    "stand": {"demask_allowed": true},
+    "crm": {"api_key_env": "ALFAGEN_CRM_API_KEY", "demask_allowed": true},
+    "analytics": {
+      "api_key_env": "ALFAGEN_ANALYTICS_API_KEY",
+      "mask_types": ["EMAIL", "PHONE"],
+      "mask_mode": "redact",
+      "demask_allowed": false
+    }
+  }
+}

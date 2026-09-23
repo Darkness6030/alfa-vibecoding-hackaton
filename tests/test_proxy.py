@@ -52,7 +52,9 @@ def test_proxy_timeout_raises_and_no_leak():
 
 def test_mock_llm_reorders_tokens():
     llm = MockLLM()
-    out = llm.generate("Клиент {{PERSON:aaaaaaaaaaaaaaaa}} из {{LOCATION:bbbbbbbbbbbbbbbb}}")
+    out = llm.generate(
+        "Клиент {{PERSON:aaaaaaaaaaaaaaaa}} из {{LOCATION:bbbbbbbbbbbbbbbb}}"
+    )
     assert "{{LOCATION:bbbbbbbbbbbbbbbb}}" in out
     assert "{{PERSON:aaaaaaaaaaaaaaaa}}" in out
 

@@ -2,7 +2,7 @@
 
 A detector identifies PII spans in a text and returns them as ``Span`` objects
 with half-open character offsets. Detectors are composable and added without
-changing the core (docs/decisions.md D04, requirements F02).
+changing the core (docs/reports/history/decisions.md D04, requirements F02).
 """
 
 from __future__ import annotations

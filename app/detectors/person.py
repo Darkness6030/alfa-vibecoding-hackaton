@@ -1,70 +1,56 @@
-"""Person name detector (PD01).
-
-Matches capitalized name sequences (2-3 words) as a fallback to NER. A name is
-only flagged in a personal context (client, applicant, document context), and
-suppressed in a non-personal context (poet, author, literary mention) per F01.
-"""
-
-from __future__ import annotations
+"""Context-anchored Russian names, case independent; no global famous-name bypass."""
 
 import re
+from app.detectors.base import RegexDetector
+from app.core import Span
+from app.detectors.language import VALUE_WORD, SEPARATOR, HORIZONTAL
 
-from app.detectors.base import RegexDetector, context_before
+_WORD = VALUE_WORD
+_INITIAL = r"[^\W\d_]\."
+_INITIALS = rf"{_INITIAL}(?:{HORIZONTAL}*{_INITIAL})?"
+NAME = rf"(?:{_WORD}{HORIZONTAL}++{_INITIALS}|{_INITIALS}{HORIZONTAL}++{_WORD}|{_WORD}(?:{HORIZONTAL}++{_WORD}){{1,3}})"
 
-_PERSONAL_KEYWORDS = (
-    "клиент",
-    "заявитель",
-    "родился",
-    "родилась",
-    "проживает",
-    "проживающ",
-    "паспорт",
-    "гражданин",
-    "гражданка",
-    "держатель",
-    "владелец",
-    "сотрудник",
-    "работник",
-    "подписал",
-    "подготовил",
-    "обратился",
-    "зарегистрирован",
-    "зарегистрирована",
-    "рождения",
-    "выдан",
-    "выдано",
-)
-
-_NON_PERSONAL_KEYWORDS = (
-    "поэт",
-    "писатель",
-    "автор",
-    "произведение",
-    "роман",
-    "стихотворение",
-    "книга",
-)
-
-# Two or three capitalized words (Russian names). The first word must not be a
-# context keyword (e.g. "Клиент"), so the name is matched after the keyword.
-_KEYWORD_ALT = "|".join(_PERSONAL_KEYWORDS)
-_NAME_RE = re.compile(
-    rf"(?<![А-ЯЁа-яё])\b(?!(?i:{_KEYWORD_ALT})\b)[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?"
-    rf"(?:\s+[А-ЯЁ][а-яё]+){{1,2}}\b"
+_SINGLE_NAME = re.compile(
+    rf"\b(?:first\s++name|given\s++name|middle\s++name|last\s++name|surname|имя|фамилия|отчество)"
+    rf"\s*+[:—]\s*+(?P<value>{NAME}|{_WORD})", re.IGNORECASE,
 )
 
 
 class PersonDetector(RegexDetector):
     type = "PERSON"
-    pattern = _NAME_RE
     priority = 20
+    pattern = re.compile(
+        rf"\b(?:клиент(?:ка)?|заявитель(?:ница)?|фио|ф\.и\.о\.|сотрудник|работник|гражданин|гражданка|customer|client|full name|name|employee|applicant){SEPARATOR}(?P<value>{NAME})",
+        re.IGNORECASE,
+    )
 
-    def validate(self, text: str, match: re.Match) -> bool:
-        before = context_before(text, match, n_words=6)
-        if any(kw in before for kw in _NON_PERSONAL_KEYWORDS):
-            return False
-        # The match must not begin with a context keyword (e.g. "Клиент").
-        first_word = match.group(0).split()[0].lower()
-        if first_word in _PERSONAL_KEYWORDS:
-            return False
-        return any(kw in before for kw in _PERSONAL_KEYWORDS)
+    def detect(self, text):
+        spans = super().detect(text)
+        spans.extend(
+            Span(m.start("value"), m.end("value"), self.type, m.group("value"), self.priority)
+            for m in _SINGLE_NAME.finditer(text)
+        )
+        # QA explicitly includes a payload consisting only of a full name.
+        # A patronymic signal avoids treating arbitrary three-word prose as a name.
+        if not spans and len(text) <= 200:
+            match = re.fullmatch(
+                rf"\s*(?P<value>{_WORD}(?:{HORIZONTAL}+{_WORD}){{2}})\s*[.!?]?\s*",
+                text,
+                re.IGNORECASE,
+            )
+            if match and any(
+                re.fullmatch(
+                    r"[а-яё-]+(?:ович|евич|овна|евна|ична|инична)", word, re.IGNORECASE
+                )
+                for word in match.group("value").split()
+            ):
+                spans.append(
+                    Span(
+                        match.start("value"),
+                        match.end("value"),
+                        self.type,
+                        match.group("value"),
+                        self.priority,
+                    )
+                )
+        return spans

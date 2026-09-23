@@ -16,7 +16,9 @@ def _types(text: str) -> set[str]:
 
 
 def test_famous_poet_not_pii():
-    assert "PERSON" not in _types("Поэт Александр Пушкин написал роман «Евгений Онегин».")
+    assert "PERSON" not in _types(
+        "Поэт Александр Пушкин написал роман «Евгений Онегин»."
+    )
 
 
 def test_famous_writer_not_pii():
@@ -25,7 +27,9 @@ def test_famous_writer_not_pii():
 
 def test_bank_branch_address_not_pii():
     # Bank branch address is not personal data (F01).
-    assert "ADDRESS" not in _types("Отделение банка находится по адресу г. Москва, ул. Ленина, д. 5")
+    assert "ADDRESS" not in _types(
+        "Отделение банка находится по адресу г. Москва, ул. Ленина, д. 5"
+    )
 
 
 def test_ordinary_number_not_inn():

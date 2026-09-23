@@ -25,7 +25,7 @@ client = TestClient(main.app)
 
 
 def test_metrics_endpoint_returns_prometheus_format():
-    r = client.get("/metrics")
+    r = client.get("/metrics", headers={"X-API-Key": "test-crm-only"})
     assert r.status_code == 200
     assert "text/plain" in r.headers["content-type"]
     body = r.text
@@ -34,14 +34,14 @@ def test_metrics_endpoint_returns_prometheus_format():
 
 def test_process_records_metrics():
     client.post("/process", json={"payload": "почта a@b.com", "payload_id": "m-1"})
-    body = client.get("/metrics").text
+    body = client.get("/metrics", headers={"X-API-Key": "test-crm-only"}).text
     assert "alfagen_pairs_created_total" in body
     assert "alfagen_process_latency_seconds" in body
 
 
 def test_metrics_do_not_leak_payload():
     client.post("/process", json={"payload": "почта a@b.com", "payload_id": "m-2"})
-    body = client.get("/metrics").text
+    body = client.get("/metrics", headers={"X-API-Key": "test-crm-only"}).text
     # No payload text, no payload_id, no email value in metrics.
     assert "a@b.com" not in body
     assert "m-2" not in body
@@ -51,28 +51,36 @@ def test_429_returns_retry_after():
     # Force the semaphore to be exhausted.
     main._semaphore = __import__("threading").BoundedSemaphore(0)
     try:
-        r = client.post("/process", json={"payload": "почта a@b.com", "payload_id": "m-3"})
+        r = client.post(
+            "/process", json={"payload": "почта a@b.com", "payload_id": "m-3"}
+        )
         assert r.status_code == 429
         assert r.headers.get("Retry-After") == "1"
     finally:
-        main._semaphore = __import__("threading").BoundedSemaphore(main._concurrency_limit)
+        main._semaphore = __import__("threading").BoundedSemaphore(
+            main._concurrency_limit
+        )
 
 
 def test_429_does_not_leak_payload():
     main._semaphore = __import__("threading").BoundedSemaphore(0)
     try:
-        r = client.post("/process", json={"payload": "почта a@b.com", "payload_id": "m-4"})
+        r = client.post(
+            "/process", json={"payload": "почта a@b.com", "payload_id": "m-4"}
+        )
         assert "a@b.com" not in r.text
         assert "m-4" not in r.text
     finally:
-        main._semaphore = __import__("threading").BoundedSemaphore(main._concurrency_limit)
+        main._semaphore = __import__("threading").BoundedSemaphore(
+            main._concurrency_limit
+        )
 
 
 def test_error_metrics_recorded():
     # Conflict -> 409 -> error metric.
     client.post("/process", json={"payload": "почта a@b.com", "payload_id": "m-5"})
     client.post("/process", json={"payload": "другой текст", "payload_id": "m-5"})
-    body = client.get("/metrics").text
+    body = client.get("/metrics", headers={"X-API-Key": "test-crm-only"}).text
     assert "alfagen_errors_total" in body
 
 

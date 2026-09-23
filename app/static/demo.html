@@ -1,45 +1,56 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <title>AlfaGen PII Guard — демо</title>
-  <style>
-    body { font-family: sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
-    textarea { width: 100%; height: 80px; }
-    .box { border: 1px solid #ccc; padding: 0.75rem; margin: 0.5rem 0; border-radius: 6px; }
-    .label { font-weight: bold; }
-    .stub { background: #fff3cd; border: 1px solid #ffc107; padding: 0.5rem; border-radius: 6px; }
-    button { padding: 0.5rem 1rem; }
-  </style>
-</head>
-<body>
-  <h1>AlfaGen PII Guard — демо-прокси</h1>
-  <div class="stub">⚠️ LLM: заглушка (mock). Не реальная генерация.</div>
-  <p>Введите текст с персональными данными. Прокси замаскирует его, отправит в mock LLM, затем восстановит ответ.</p>
-  <textarea id="input">Клиент Иван Петров из Москвы, почта ivan@example.com, телефон +7 912 345-67-89</textarea>
-  <br>
-  <button onclick="run()">Отправить</button>
-  <div id="result"></div>
-
-  <script>
-    async function run() {
-      const text = document.getElementById('input').value;
-      const res = await fetch('/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
-      });
-      const data = await res.json();
-      const el = document.getElementById('result');
-      el.innerHTML = `
-        <div class="box"><span class="label">Маска (что видит LLM):</span><br>${escapeHtml(data.masked_input)}</div>
-        <div class="box"><span class="label">Ответ mock LLM:</span><br>${escapeHtml(data.llm_response)}</div>
-        <div class="box"><span class="label">Восстановленный ответ:</span><br>${escapeHtml(data.restored_response)}</div>
-      `;
-    }
-    function escapeHtml(s) {
-      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
-  </script>
-</body>
-</html>
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AlfaGen · Защита данных</title>
+<style>
+:root{font-family:Arial,sans-serif;color:#17202a;background:#f4f5f7}*{box-sizing:border-box}body{max-width:1120px;margin:0 auto;padding:48px 28px}header{border-top:5px solid #ef3124;padding-top:24px}h1{font-size:42px;letter-spacing:-1.5px;margin:12px 0}h2{font-size:20px}p{line-height:1.6;color:#58616d}.note{color:#8a3d0b;background:#fff2df;padding:12px 16px;margin:24px 0}label{display:block;font-weight:600;margin:20px 0 10px}input,textarea{width:100%;font:16px/1.5 inherit;padding:14px;border:1px solid #c7ced5;border-radius:6px;background:white}textarea{min-height:170px;font-size:16px;line-height:1.6}button{border:0;border-radius:6px;background:#c6281c;color:white;padding:15px 23px;font-size:16px;cursor:pointer;margin:18px 0}button:disabled{opacity:.5}.row{display:grid;grid-template-columns:1fr 1fr;gap:20px}.stage{border-top:1px solid #ccd1d8;padding:10px 0 20px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:15px/1.7 monospace;background:white;padding:20px;border-radius:6px}#error{color:#ad2119}small{color:#5a6570}@media(max-width:700px){.row{grid-template-columns:1fr}h1{font-size:32px}}
+</style></head><body><header><small>ALFAGEN / PII GUARD</small><h1>Персональные данные под контролем</h1><p>Проверьте, какой текст получает модель и как сервис восстанавливает данные в ответе.</p></header>
+<div class="note">LLM: локальная заглушка. Она переставляет токены для проверки восстановления. Реальная генерация не подключена.</div>
+<label for="key">Ключ демо-системы CRM</label><input id="key" type="password" autocomplete="off" placeholder="API-ключ из окружения сервера"><small>Ключ используется только для запроса, не сохраняется в браузере.</small>
+<label for="input">Синтетический текст для проверки</label><textarea id="input">Клиент Иван Петров, дата рождения 15 марта 1990 года, паспорт серия 45 09 номер 123456. Почта ivan@example.com, телефон +7 912 345-67-89.</textarea>
+<button id="run">Проверить защиту</button><p id="error" role="alert"></p><p id="timing"></p>
+<section id="results" hidden><div class="stage"><h2>1. Что получает заглушка LLM</h2><pre id="masked"></pre></div><div class="row"><div class="stage"><h2>2. Ответ заглушки</h2><pre id="response"></pre></div><div class="stage"><h2>3. Ответ потребителю</h2><pre id="restored"></pre></div></div><p id="warnings"></p></section>
+<script>
+const element = id => document.getElementById(id);
+const errors = {
+  401: 'Введите действующий ключ CRM.',
+  403: 'Политика системы запрещает этот сценарий.',
+  413: 'Текст превышает допустимый размер.',
+  429: 'Сервис занят. Повторите запрос.',
+  502: 'Ошибка заглушки LLM.',
+  503: 'Защитное хранилище временно недоступно.'
+};
+class DemoError extends Error {}
+async function requestProtection() {
+  const response = await fetch('/proxy', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-API-Key': element('key').value},
+    body: JSON.stringify({
+      payload: element('input').value,
+      payload_id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now())
+    })
+  });
+  if (!response.ok) throw new DemoError(errors[response.status] || 'Запрос не выполнен. Код ' + response.status);
+  return response.json();
+}
+function showResult(data, started) {
+  element('masked').textContent = data.masked_input;
+  element('response').textContent = data.llm_response;
+  element('restored').textContent = data.restored_response;
+  element('warnings').textContent = data.warnings.length ? 'Внимание: ' + data.warnings.join(', ') : '';
+  element('timing').textContent = 'Полный запрос: ' + Math.round(performance.now() - started) + ' мс. LLM: заглушка.';
+  element('results').hidden = false;
+}
+element('run').addEventListener('click', async () => {
+  element('run').disabled = true;
+  element('error').textContent = '';
+  element('results').hidden = true;
+  const started = performance.now();
+  try {
+    showResult(await requestProtection(), started);
+  } catch (error) {
+    // Arbitrary transport exceptions must not reflect input values or credentials.
+    element('error').textContent = error instanceof DemoError ? error.message : 'Не удалось связаться с сервисом. Повторите запрос.';
+  } finally {
+    element('run').disabled = false;
+  }
+});
+</script></body></html>

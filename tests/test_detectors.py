@@ -6,7 +6,6 @@ implemented (PD01/03/05/06/09/10/17) are NOT marked here.
 
 from __future__ import annotations
 
-import pytest
 
 from app.core import Span, resolve_spans
 from app.engine import MaskingEngine

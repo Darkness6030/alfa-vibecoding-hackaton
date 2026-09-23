@@ -11,8 +11,14 @@ from pydantic import BaseModel, Field
 
 
 class ProcessRequest(BaseModel):
-    payload: str = Field(..., description="Input text to process")
-    payload_id: str = Field(..., description="Correlation id for the pair")
+    payload: str = Field(..., strict=True, description="Input text to process")
+    payload_id: str = Field(
+        ...,
+        strict=True,
+        min_length=1,
+        max_length=256,
+        description="Correlation id for the pair",
+    )
 
 
 class ProcessResponse(BaseModel):

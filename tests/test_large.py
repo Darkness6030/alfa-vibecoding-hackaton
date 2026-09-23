@@ -73,3 +73,22 @@ def test_large_text_pii_at_boundaries():
     assert restored == text
     _assert_not_in("a@b.com", res.masked_text)
     _assert_not_in("+7 912 345-67-89", res.masked_text)
+
+
+def test_100k_email_tokens_fit_both_http_directions():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    original = "a@example.com " * 100_000
+    assert count_tokens(original) == 100_000
+    client = TestClient(app)
+    body = {"payload": original, "payload_id": "dense-100k-http"}
+    response = client.post("/process", json=body)
+    assert response.status_code == 200
+    masked = response.json()["result"]
+    assert len(masked.encode()) > 4_000_000
+    assert "a@example.com" not in masked
+    body["payload"] = masked
+    restored = client.post("/process", json=body)
+    assert restored.status_code == 200
+    assert restored.json()["result"] == original

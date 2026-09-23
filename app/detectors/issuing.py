@@ -1,31 +1,41 @@
-"""Issuing authority detector (PD06).
-
-The authority that issued a document is flagged when preceded by issue context
-(выдан, выдано, орган, кем выдан).
-"""
-
-from __future__ import annotations
+"""Issuing authorities: scan once to punctuation or the next structured field."""
 
 import re
+from app.core import Span
+from app.detectors.base import RegexDetector
+from app.detectors.language import SEPARATOR
 
-from app.detectors.base import RegexDetector, context_before
-
-# Issuing authority: capitalized phrase after issue context, e.g.
-# "выдан ОВД района" or "выдан УФМС России".
-_AUTHORITY_RE = re.compile(
-    r"(?<![А-ЯЁа-яё])\b(?:ОВД\w*|УФМС\w*|МВД\w*|ГУВД\w*|"
-    r"УВД\w*|ФМС\w*|отдел\w*\s+[А-ЯЁ][а-яё-]+|"
-    r"управление\w*\s+[А-ЯЁ][а-яё-]+)\b"
+_AUTHORITY_START = re.compile(
+    rf"\b(?:выдан[ао]?|орган(?:,?\s++выдавший\s++паспорт)?|кем\s++выдан|issued\s++by|issuing\s++authority){SEPARATOR}"
+    r"(?P<value>(?:овд|уфмс|мвд|гувд|увд|фмс|отдел\w*+|управлени\w*+|ministry|department|office|authority|hmpo|hm\s++passport\s++office)\b)",
+    re.IGNORECASE,
 )
-
-_AUTHORITY_KEYWORDS = ("выдан", "выдано", "выдана", "орган", "кем выдан", "выдавший")
+_AUTHORITY_END = re.compile(
+    r"[,;\n\d]|\b(?:код\s++подразделения|дата\s++выдачи|паспорт|выдан[ао]?|кем\s++выдан|"
+    r"department\s++code|division\s++code|issue\s++date|date\s++of\s++issue|passport|issued\s++by|"
+    r"issuing\s++authority|phone|email|телефон|почта)\b",
+    re.IGNORECASE,
+)
 
 
 class IssuingAuthorityDetector(RegexDetector):
     type = "ISSUING_AUTHORITY"
-    pattern = _AUTHORITY_RE
-    priority = 30
+    priority = 45
+    pattern = _AUTHORITY_START
 
-    def validate(self, text: str, match: re.Match) -> bool:
-        before = context_before(text, match, n_words=4)
-        return any(kw in before for kw in _AUTHORITY_KEYWORDS)
+    def detect(self, text):
+        spans = []
+        for match in self.pattern.finditer(text):
+            boundary = _AUTHORITY_END.search(text, match.end())
+            end = boundary.start() if boundary else len(text)
+            value = text[match.start("value") : end].rstrip(" .\t")
+            spans.append(
+                Span(
+                    match.start("value"),
+                    match.start("value") + len(value),
+                    self.type,
+                    value,
+                    self.priority,
+                )
+            )
+        return spans

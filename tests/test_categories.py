@@ -104,7 +104,13 @@ def test_pd10_address_positive():
 
 
 def test_pd10_address_negative():
-    assert "ADDRESS" not in _types("г. Москва, ул. Ленина, д. 5")
+    # A bare city mention without address structure is not an address.
+    assert "ADDRESS" not in _types("Командировка в Москву")
+
+
+def test_pd10_address_standalone_structured():
+    # A structured multi-component address is masked even without "Адрес:".
+    assert "ADDRESS" in _types("г. Москва, ул. Маросейка, д. 5")
 
 
 # --- PD11 Email ---
@@ -182,9 +188,23 @@ def test_all_17_categories_represented():
     )
     types = _types(text)
     expected = {
-        "PERSON", "BIRTH_DATE", "BIRTH_PLACE", "PASSPORT", "CITIZENSHIP",
-        "ISSUING_AUTHORITY", "DIVISION_CODE", "ISSUE_DATE", "DRIVING_LICENSE",
-        "ADDRESS", "EMAIL", "PHONE", "INN", "CARD", "CVV", "PIN", "CARD_HOLDER",
+        "PERSON",
+        "BIRTH_DATE",
+        "BIRTH_PLACE",
+        "PASSPORT",
+        "CITIZENSHIP",
+        "ISSUING_AUTHORITY",
+        "DIVISION_CODE",
+        "ISSUE_DATE",
+        "DRIVING_LICENSE",
+        "ADDRESS",
+        "EMAIL",
+        "PHONE",
+        "INN",
+        "CARD",
+        "CVV",
+        "PIN",
+        "CARD_HOLDER",
     }
     missing = expected - types
     assert not missing, f"missing categories: {missing}"

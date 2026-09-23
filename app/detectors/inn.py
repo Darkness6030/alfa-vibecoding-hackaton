@@ -12,7 +12,7 @@ from app.detectors.base import RegexDetector, context_before
 
 _INN_RE = re.compile(r"(?<!\d)\d{10}(?!\d)|(?<!\d)\d{12}(?!\d)")
 
-_INN_KEYWORDS = ("инн", "иин", "и.н.н")
+_INN_KEYWORDS = ("инн", "иин", "и.н.н", "inn", "taxpayer identification number")
 
 
 class InnDetector(RegexDetector):
@@ -21,5 +21,5 @@ class InnDetector(RegexDetector):
     priority = 40
 
     def validate(self, text: str, match: re.Match) -> bool:
-        before = context_before(text, match)
+        before = context_before(text, match, 4)
         return any(kw in before for kw in _INN_KEYWORDS)

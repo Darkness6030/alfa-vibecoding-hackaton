@@ -1,0 +1,11 @@
+# Optional HTTPS by IP; self-signed is explicitly supported by the stand.
+services:
+  tls:
+    image: nginx:1.28-alpine
+    depends_on: [api]
+    ports:
+      - "${ALFAGEN_BIND:-127.0.0.1}:${ALFAGEN_TLS_PORT:-18443}:8443"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./.secrets/tls:/certs:ro
+    mem_limit: 128m

@@ -1,33 +1,41 @@
 services:
   redis:
     image: redis:7.4-alpine
-    container_name: alfagen-redis
-    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    command: [redis-server, --maxmemory, "${ALFAGEN_REDIS_MAXMEMORY:-1024mb}", --maxmemory-policy, noeviction, --save, "", --appendonly, "no"]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [CMD, redis-cli, ping]
       interval: 5s
       timeout: 3s
       retries: 5
-
+    mem_limit: ${ALFAGEN_REDIS_MEMORY_LIMIT:-1280m}
   api:
     build: .
-    image: alfagen-pii-guard:0.1.0
-    container_name: alfagen-api
+    image: alfagen-pii-guard:0.4.4
     depends_on:
       redis:
         condition: service_healthy
     environment:
-      ALFAGEN_PROFILE: evaluation-open
-      ALFAGEN_ENGINE_STUB: "true"
+      ALFAGEN_PROFILE: ${ALFAGEN_PROFILE:-evaluation-open}
       ALFAGEN_REDIS_URL: redis://redis:6379/0
-      ALFAGEN_STATE_NAMESPACE: evaluation-open
-      ALFAGEN_STATE_CONSUMER: stand
-      ALFAGEN_STATE_TTL_SECONDS: "900"
+      ALFAGEN_STATE_NAMESPACE: ${ALFAGEN_STATE_NAMESPACE:-evaluation-v2}
+      ALFAGEN_STATE_TTL_SECONDS: ${ALFAGEN_STATE_TTL_SECONDS:-900}
+      ALFAGEN_STATE_MAX_RECORD_BYTES: ${ALFAGEN_STATE_MAX_RECORD_BYTES:-16000000}
+      ALFAGEN_MAX_BODY_BYTES: ${ALFAGEN_MAX_BODY_BYTES:-8000000}
+      ALFAGEN_MAX_CONCURRENCY: ${ALFAGEN_MAX_CONCURRENCY:-32}
+      ALFAGEN_NER_ENABLED: ${ALFAGEN_NER_ENABLED:-false}
+      ALFAGEN_ENCRYPTION_KEY: ${ALFAGEN_ENCRYPTION_KEY:?Set a shared Fernet key}
+      ALFAGEN_CRM_API_KEY: ${ALFAGEN_CRM_API_KEY:?Set a demo API key}
+      ALFAGEN_ANALYTICS_API_KEY: ${ALFAGEN_ANALYTICS_API_KEY:?Set an analytics API key}
+      ALFAGEN_METRICS_API_KEY: ${ALFAGEN_METRICS_API_KEY:?Set a monitoring API key}
+      ALFAGEN_POLICY_FILE: /srv/config/policies.json
+      ALFAGEN_WORKERS: ${ALFAGEN_WORKERS:-2}
+    volumes:
+      - ./config/policies.json:/srv/config/policies.json:ro
     ports:
-      - "8000:8000"
+      - "${ALFAGEN_BIND:-127.0.0.1}:${ALFAGEN_PORT:-8000}:8000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 5s
+    mem_limit: 2g

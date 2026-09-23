@@ -1,38 +1,5 @@
-# Load-test deployment (K9). Parameterize worker count via ALFAGEN_WORKERS.
-#   ALFAGEN_WORKERS=2 docker compose -p alfagen-load -f docker-compose.load.yml up -d
+# Overlay for an isolated benchmark project, never points at production Redis.
 services:
-  redis:
-    image: redis:7.4-alpine
-    container_name: alfagen-load-redis
-    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   api:
-    image: alfagen-pii-guard:0.1.0-amd64
-    container_name: alfagen-load-api
-    depends_on:
-      redis:
-        condition: service_healthy
-    environment:
-      ALFAGEN_PROFILE: evaluation-open
-      ALFAGEN_ENGINE_STUB: "true"
-      ALFAGEN_REDIS_URL: redis://redis:6379/0
-      ALFAGEN_STATE_NAMESPACE: evaluation-open
-      ALFAGEN_STATE_CONSUMER: stand
-      ALFAGEN_STATE_TTL_SECONDS: "900"
-      ALFAGEN_WORKERS: "${ALFAGEN_WORKERS:-1}"
-      # Shared encryption key across workers (required for multi-worker demask).
-      ALFAGEN_ENCRYPTION_KEY: "${ALFAGEN_ENCRYPTION_KEY:-}"
-    command: ["sh", "-c", "rm -rf /tmp/prometheus-multiproc && mkdir -p /tmp/prometheus-multiproc && PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus-multiproc uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers $${ALFAGEN_WORKERS}"]
-    ports:
-      - "8001:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 5s
+    ports: !override
+      - "127.0.0.1:${ALFAGEN_PORT:-18000}:8000"

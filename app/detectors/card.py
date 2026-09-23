@@ -13,15 +13,13 @@ from app.detectors.base import RegexDetector, context_before
 
 # Card number: 13-19 digits, optionally grouped in 4s. The trailing \d{0,3}
 # covers the 16-digit case (4 groups of 4 with no remainder).
-_CARD_RE = re.compile(
-    r"(?<!\d)(?:\d{4}[\s-]?){3,4}\d{0,3}(?!\d)"
-)
+_CARD_RE = re.compile(r"(?<!\d)(?:\d{4}[\s-]?){3,4}\d{0,3}(?!\d)")
 
 # CVV: 3 digits. PIN: 4 digits.
 _CVV_RE = re.compile(r"(?<!\d)\d{3}(?!\d)")
 _PIN_RE = re.compile(r"(?<!\d)\d{4}(?!\d)")
 
-_CARD_KEYWORDS = ("карт", "карта", "карту", "картой", "счёт", "счет", "банк")
+_CARD_KEYWORDS = ("карт", "карта", "карту", "картой", "счёт", "счет", "банк", "card")
 _CVV_KEYWORDS = ("cvv", "cvc", "код карты", "код с обратной")
 _PIN_KEYWORDS = ("пин", "pin", "пароль")
 

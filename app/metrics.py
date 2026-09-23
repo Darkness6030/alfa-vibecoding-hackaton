@@ -18,6 +18,9 @@ Exposed:
 from __future__ import annotations
 
 import os
+import logging
+import time
+from contextlib import contextmanager
 
 from prometheus_client import (
     CollectorRegistry,
@@ -33,7 +36,7 @@ _MULTIPROC_DIR = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
 if _MULTIPROC_DIR:
     os.makedirs(_MULTIPROC_DIR, exist_ok=True)
     registry = CollectorRegistry()
-    multiprocess.MultiProcessCollector(registry)
+    # The collector is attached to a separate scrape registry below.
 else:
     registry = CollectorRegistry()
 
@@ -90,4 +93,35 @@ def generate_latest() -> bytes:
     """Return the aggregated metrics in Prometheus text format."""
     from prometheus_client import generate_latest as _generate_latest
 
+    if _MULTIPROC_DIR:
+        scrape = CollectorRegistry()
+        multiprocess.MultiProcessCollector(scrape)
+        return _generate_latest(scrape)
     return _generate_latest(registry)
+
+
+input_tokens = Counter(
+    "alfagen_input_tokens_total",
+    "Whitespace tokens processed; technical throughput, not LLM billing tokens",
+    ["route"],
+    registry=registry,
+)
+
+
+@contextmanager
+def measured(stage: str):
+    """Internal fixed stage labels only; never log payload or exception text."""
+    start = time.perf_counter()
+    outcome = "error"
+    try:
+        yield
+        outcome = "ok"
+    finally:
+        elapsed = time.perf_counter() - start
+        process_latency.labels(stage=stage).observe(elapsed)
+        logging.getLogger("alfagen.stages").info(
+            "stage=%s outcome=%s latency_ms=%.2f",
+            stage,
+            outcome,
+            elapsed * 1000,
+        )

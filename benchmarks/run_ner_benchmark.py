@@ -69,7 +69,7 @@ def evaluate(predicted, expected):
     for typ in ("PER", "LOC"):
         idx = 0 if typ == "PER" else 1
         tp = fp = fn = 0
-        for pred, exp in zip(predicted, expected):
+        for pred, exp in zip(predicted, expected, strict=True):
             pred_set = {(s, e) for t, s, e in pred if t == typ}
             exp_set = set(exp[idx])
             tp += len(pred_set & exp_set)
@@ -105,7 +105,9 @@ def main() -> None:
         stats = evaluate(pred, expected)
         print(f"time: {elapsed:.3f}s  peak_mem: {peak / 1e6:.1f} MB")
         for typ, s in stats.items():
-            print(f"  {typ}: P={s['precision']:.2f} R={s['recall']:.2f} F1={s['f1']:.2f}")
+            print(
+                f"  {typ}: P={s['precision']:.2f} R={s['recall']:.2f} F1={s['f1']:.2f}"
+            )
     except Exception as exc:  # pragma: no cover
         import traceback
 

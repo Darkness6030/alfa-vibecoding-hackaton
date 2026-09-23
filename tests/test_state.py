@@ -135,7 +135,7 @@ def test_oversized_payload_raises_storage_error():
 
 def test_ttl_expiry_allows_new_publication():
     store = _make_store(ttl=1)
-    first = store.process("id-1", "mail a@b.com now", _email_mask)
+    store.process("id-1", "mail a@b.com now", _email_mask)
     # Simulate TTL expiry by clearing the key.
     store._redis.flushall()
     second = store.process("id-1", "mail a@b.com now", _email_mask)

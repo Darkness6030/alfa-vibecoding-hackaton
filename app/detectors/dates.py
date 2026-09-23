@@ -1,20 +1,13 @@
-"""Date detectors (PD02 date of birth, PD08 date of issue).
-
-A date is only flagged when it appears with the relevant context keyword, so a
-birth date is distinguished from an issue date and from arbitrary dates.
-"""
-
-from __future__ import annotations
+"""Context dates: day/year first, textual months, preserving original spelling."""
 
 import re
-
 from app.detectors.base import RegexDetector, context_before
 
-# DD.MM.YYYY or DD.MM.YY, also DD/MM/YYYY.
-_DATE_RE = re.compile(r"(?<!\d)\d{1,2}[./]\d{1,2}[./]\d{2,4}(?!\d)")
-
-_BIRTH_KEYWORDS = ("дата рождения", "родился", "родилась", "рождения", "род.")
-_ISSUE_KEYWORDS = ("дата выдачи", "выдан", "выдана", "выдачи")
+_MONTH = r"(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря|january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)"
+_DATE_RE = re.compile(
+    rf"(?<!\d)(?=[\dA-Za-z])(?:\d{{4}}[./-]\d{{1,2}}[./-]\d{{1,2}}|\d{{1,2}}[./-]\d{{1,2}}[./-]\d{{2,4}}|\d{{1,2}}\s++{_MONTH}\.?\s++\d{{4}}|{_MONTH}\.?\s++\d{{1,2}}(?:st|nd|rd|th)?[,]?\s++\d{{4}})(?!\d)",
+    re.IGNORECASE,
+)
 
 
 class BirthDateDetector(RegexDetector):
@@ -22,9 +15,21 @@ class BirthDateDetector(RegexDetector):
     pattern = _DATE_RE
     priority = 40
 
-    def validate(self, text: str, match: re.Match) -> bool:
-        before = context_before(text, match)
-        return any(kw in before for kw in _BIRTH_KEYWORDS)
+    def validate(self, text, match):
+        before = context_before(text, match, 3)
+        return any(
+            k in before
+            for k in (
+                "дата рождения",
+                "родился",
+                "родилась",
+                "рождения",
+                "род.",
+                "date of birth",
+                "dob",
+                "born",
+            )
+        )
 
 
 class IssueDateDetector(RegexDetector):
@@ -32,6 +37,16 @@ class IssueDateDetector(RegexDetector):
     pattern = _DATE_RE
     priority = 40
 
-    def validate(self, text: str, match: re.Match) -> bool:
-        before = context_before(text, match)
-        return any(kw in before for kw in _ISSUE_KEYWORDS)
+    def validate(self, text, match):
+        before = context_before(text, match, 3)
+        return any(
+            k in before
+            for k in (
+                "дата выдачи",
+                "выдан",
+                "выдачи",
+                "issue date",
+                "date of issue",
+                "issued",
+            )
+        )
